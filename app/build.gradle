@@ -48,6 +48,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-firestore:21.2.0'
     //  MapBox
     implementation 'com.mapbox.mapboxsdk:mapbox-android-sdk:8.4.0'
+    implementation 'com.mapbox.mapboxsdk:mapbox-sdk-services:4.9.0'
+    // retrofit
+    implementation 'com.squareup.retrofit2:retrofit:2.6.2'
 
     /** custom dependencies end **/
 }
