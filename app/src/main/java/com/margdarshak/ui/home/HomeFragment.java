@@ -23,7 +23,6 @@ import com.google.android.material.snackbar.Snackbar;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
 import com.mapbox.api.directions.v5.DirectionsService;
-import com.mapbox.api.directions.v5.MapboxDirections;
 import com.mapbox.api.directions.v5.models.DirectionsResponse;
 import com.mapbox.api.directions.v5.models.DirectionsRoute;
 import com.mapbox.core.MapboxService;
@@ -47,11 +46,11 @@ import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
-import com.mapbox.mapboxsdk.utils.BitmapUtils;
-import com.margdarshak.MainActivity;
 import com.margdarshak.R;
 import com.margdarshak.routing.HttpCallHandler;
 
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -75,7 +74,7 @@ public class HomeFragment extends Fragment implements
     private MapView mapView;
     FloatingActionButton myLocationButton;
     private FusedLocationProviderClient fusedLocationClient;
-    FloatingActionButton emailFab;
+    FloatingActionButton directionButton;
 
     private static final String ROUTE_LAYER_ID = "route-layer-id";
     private static final String ROUTE_SOURCE_ID = "route-source-id";
@@ -95,7 +94,7 @@ public class HomeFragment extends Fragment implements
                 textView.setText(s);
             }
         });
-        emailFab = root.findViewById(R.id.fabEmail);
+        directionButton = root.findViewById(R.id.getDirection);
         mapView = root.findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
@@ -130,7 +129,7 @@ public class HomeFragment extends Fragment implements
         mapboxMap.setStyle(Style.MAPBOX_STREETS,
                 style -> {
                     enableLocationComponent(style);
-                    emailFab.setOnClickListener(new View.OnClickListener() {
+                    directionButton.setOnClickListener(new View.OnClickListener() {
                         @Override
                         public void onClick(View view) {
                             mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
@@ -149,6 +148,21 @@ public class HomeFragment extends Fragment implements
 
                                     // Get the directions route from the Mapbox Directions API
                                     getRoute(mapboxMap, origin, destination);
+
+                                    // Toggle GPS position updates
+                                    CameraPosition position = new CameraPosition.Builder()
+                                            .target(new LatLng(origin.latitude(), origin.longitude()))
+                                            .zoom(14) // Sets the zoom
+                                            .build(); // Creates a CameraPosition from the builder
+                                    mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), 2000, new MapboxMap.CancelableCallback() {
+                                        @Override
+                                        public void onCancel() {
+
+                                        }
+                                        @Override
+                                        public void onFinish() {
+                                        }
+                                    });
                                 }
                             });
                             // HttpCallHandler.getOSRMRoute();
@@ -247,8 +261,9 @@ public class HomeFragment extends Fragment implements
      * @param destination the desired finish point of the route
      */
     private void getRoute(MapboxMap mapboxMap, Point origin, Point destination) {
-        HttpCallHandler.getOSRMRoute(origin, destination);
-        MapboxService<DirectionsResponse, DirectionsService> client = MapboxDirections.builder()
+        //HttpCallHandler.getOSRMRoute(origin, destination);
+        MapboxService<DirectionsResponse, CustomDirectionService> client = MapboxDirections.builder()
+                .baseUrl("http://34.93.158.237:5000/")
                 .origin(origin)
                 .destination(destination)
                 .overview(DirectionsCriteria.OVERVIEW_FULL)
@@ -256,6 +271,11 @@ public class HomeFragment extends Fragment implements
                 .accessToken(getString(R.string.mapbox_access_token))
                 .build();
 
+        client.setCallFactory(request -> {
+            return HttpCallHandler.getCall(request);
+        });
+        /*CustomDirectionService service = client.getRetrofit().create(CustomDirectionService.class);
+        service.getCall("-3.588098,37.176164;-3.601845,37.18408");*/
         client.enqueueCall(new Callback<DirectionsResponse>() {
             @Override
             public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
@@ -300,6 +320,7 @@ public class HomeFragment extends Fragment implements
             }
             @Override
             public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
+                Log.e(TAG, "Error: " + call.request().url());
                 Log.e(TAG, "Error: " + throwable.getMessage());
                 Toast.makeText(getContext(), "Error: " + throwable.getMessage(),
                         Toast.LENGTH_SHORT).show();

@@ -52,6 +52,8 @@ dependencies {
     // retrofit
     implementation 'com.squareup.retrofit2:retrofit:2.6.2'
 
+    compileOnly 'com.google.auto.value:auto-value:1.2'
+    annotationProcessor 'com.google.auto.value:auto-value:1.2'
     /** custom dependencies end **/
 }
 

@@ -3,6 +3,7 @@ package com.margdarshak.routing;
 import com.mapbox.geojson.Point;
 import com.margdarshak.callback.OSRMCallback;
 
+import okhttp3.Call;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 
@@ -14,5 +15,9 @@ public class HttpCallHandler {
                 .build();
 
         client.newCall(request).enqueue(new OSRMCallback());
+    }
+
+    public static Call getCall(Request request){
+        return client.newCall(request);
     }
 }
