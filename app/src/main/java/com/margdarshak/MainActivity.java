@@ -1,17 +1,15 @@
 package com.margdarshak;
 
 import android.os.Bundle;
-
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.snackbar.Snackbar;
-
 import android.os.StrictMode;
-import android.view.View;
+import android.util.Log;
+import android.view.Menu;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
@@ -20,32 +18,17 @@ import androidx.navigation.ui.NavigationUI;
 import com.google.android.material.navigation.NavigationView;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
-import com.mapbox.mapboxsdk.camera.CameraPosition;
-import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
-import com.mapbox.mapboxsdk.geometry.LatLng;
-import com.mapbox.mapboxsdk.location.LocationComponent;
-import com.mapbox.mapboxsdk.location.LocationComponentActivationOptions;
-import com.mapbox.mapboxsdk.location.OnCameraTrackingChangedListener;
-import com.mapbox.mapboxsdk.location.modes.CameraMode;
-import com.mapbox.mapboxsdk.location.modes.RenderMode;
-import com.mapbox.mapboxsdk.maps.MapView;
-import com.mapbox.mapboxsdk.maps.MapboxMap;
-import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
-import com.mapbox.mapboxsdk.maps.Style;
-import com.mapbox.mapboxsdk.style.layers.Property;
-import com.mapbox.mapboxsdk.style.layers.TransitionOptions;
-import com.margdarshak.routing.HttpCallHandler;
+import com.margdarshak.ui.home.HomeFragment.ActivityPermissionListener;
+import com.margdarshak.ui.home.HomeFragment.LocationPermissionCallback;
 
-import androidx.drawerlayout.widget.DrawerLayout;
+import java.util.List;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
+public class MainActivity extends AppCompatActivity implements ActivityPermissionListener {
 
-import android.view.Menu;
-
-public class MainActivity extends AppCompatActivity {
-
+    public static final String TAG = MainActivity.class.getSimpleName();
     private AppBarConfiguration mAppBarConfiguration;
+    private PermissionsManager permissionsManager;
+    private LocationPermissionCallback locationPermissionCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
         NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
         NavigationUI.setupWithNavController(navigationView, navController);
-
+        permissionsManager = new PermissionsManager(this);
     }
 
     @Override
@@ -88,4 +71,34 @@ public class MainActivity extends AppCompatActivity {
                 || super.onSupportNavigateUp();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.d(TAG, "result received.." + requestCode +" "+ permissions[0] +" "+ grantResults[0]);
+        permissionsManager.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    @Override
+    public void onExplanationNeeded(List<String> permissionsToExplain) {
+        Log.d(TAG, "explanation displayed.." + locationPermissionCallback);
+        Toast.makeText(this, R.string.user_location_permission_explanation, Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    public void onPermissionResult(boolean granted) {
+        if (granted) {
+            Log.d(TAG, "granted.. calling callback" + locationPermissionCallback);
+            locationPermissionCallback.onGrant();
+        } else {
+            Log.d(TAG, "denied.. calling callback" + locationPermissionCallback);
+            Toast.makeText(this, R.string.user_location_permission_not_granted, Toast.LENGTH_LONG).show();
+            locationPermissionCallback.onDenial();
+        }
+    }
+
+    @Override
+    public void requestLocationPermission(LocationPermissionCallback locationPermissionCallback) {
+        this.locationPermissionCallback = locationPermissionCallback;
+        permissionsManager.requestLocationPermissions(this);
+        Log.d(TAG, "location permission request sent.." + locationPermissionCallback);
+    }
 }

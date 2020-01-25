@@ -1,5 +1,6 @@
 package com.margdarshak.ui.home;
 
+import android.content.Context;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.location.Location;
@@ -16,13 +17,13 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.lifecycle.ViewModelProviders;
 import androidx.lifecycle.ViewModelStore;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
+import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
 import com.mapbox.api.directions.v5.DirectionsService;
@@ -50,10 +51,7 @@ import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
 import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
-import com.mapbox.mapboxsdk.utils.BitmapUtils;
-import com.margdarshak.MainActivity;
 import com.margdarshak.R;
-import com.margdarshak.routing.HttpCallHandler;
 import com.margdarshak.routing.MargdarshakDirection;
 import com.margdarshak.routing.OSRMService;
 
@@ -81,7 +79,7 @@ public class HomeFragment extends Fragment implements
     FloatingActionButton myLocationButton;
     private FusedLocationProviderClient fusedLocationClient;
     FloatingActionButton emailFab;
-
+    private ActivityPermissionListener permissionResultListener;
     private static final String ROUTE_LAYER_ID = "route-layer-id";
     private static final String ROUTE_SOURCE_ID = "route-source-id";
     private static final String ICON_LAYER_ID = "icon-layer-id";
@@ -101,31 +99,42 @@ public class HomeFragment extends Fragment implements
         });
         emailFab = root.findViewById(R.id.fabEmail);
         mapView = root.findViewById(R.id.mapView);
+        myLocationButton = root.findViewById(R.id.locationFAB);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this.getContext());
-
-        myLocationButton = root.findViewById(R.id.locationFAB);
-        myLocationButton.setOnClickListener(v -> {
-            // Toggle GPS position updates
-            CameraPosition position = new CameraPosition.Builder()
-                    .target(new LatLng(mapboxMap.getLocationComponent().getLastKnownLocation()))
-                    .zoom(14) // Sets the zoom
-                    .build(); // Creates a CameraPosition from the builder
-            mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), 2000, new MapboxMap.CancelableCallback() {
-                @Override
-                public void onCancel() {
-
-                }
-                @Override
-                public void onFinish() {
-                    mapboxMap.getLocationComponent().setCameraMode(CameraMode.TRACKING);
-                    myLocationButton.hide();
-                }
-            });
-        });
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(getActivity());
 
         return root;
+    }
+
+    private void moveCameraTo(Location target) {
+        // Toggle GPS position updates
+        CameraPosition position = new CameraPosition.Builder()
+                .target(new LatLng(target))
+                .zoom(14) // Sets the zoom
+                .build(); // Creates a CameraPosition from the builder
+        mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), 2000, new MapboxMap.CancelableCallback() {
+            @Override
+            public void onCancel() {
+
+            }
+            @Override
+            public void onFinish() {
+                mapboxMap.getLocationComponent().setCameraMode(CameraMode.TRACKING);
+                myLocationButton.hide();
+            }
+        });
+    }
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof ActivityPermissionListener) {
+            permissionResultListener = (ActivityPermissionListener) context;
+        } else {
+            throw new ClassCastException(context.toString()
+                    + " must implement ActivityPermissionListener");
+        }
     }
 
     @Override
@@ -133,81 +142,81 @@ public class HomeFragment extends Fragment implements
         this.mapboxMap = mapboxMap;
         mapboxMap.setStyle(Style.MAPBOX_STREETS,
                 style -> {
-                    enableLocationComponent(style);
-                    emailFab.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
-                                @Override
-                                public void onStyleLoaded(@NonNull Style style) {
-                                    Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
-                                    // Set the origin location to the Alhambra landmark in Granada, Spain.
-                                    Point origin = Point.fromLngLat(currentLocation.getLongitude(), currentLocation.getLatitude());
-
-                                    // Set the destination location to the Plaza del Triunfo in Granada, Spain.
-                                    Point destination = Point.fromLngLat(-9.1187862,53.283891);
-
-                                    initSource(style, origin, destination);
-
-                                    initLayers(style, origin, destination);
-
-                                    // Get the directions route from the Mapbox Directions API
-                                    // getRoute(mapboxMap, origin, destination);
-                                    getRouteCustom(mapboxMap, origin, destination);
-
-                                }
-                            });
-
-                            Snackbar.make(view, "Http call complete", Snackbar.LENGTH_LONG)
-                                    .setAction("Action", null).show();
-                        }
-                    });
+                    permissionResultListener.requestLocationPermission(new LocationPermissionCallback(mapboxMap, style));
                 });
     }
 
     @SuppressWarnings( {"MissingPermission"})
     private void enableLocationComponent(@NonNull Style loadedMapStyle) {
-
         // Check if permissions are enabled and if not request
-        if (PermissionsManager.areLocationPermissionsGranted(this.getContext())) {
-
-            // Get an instance of the component
+        if (PermissionsManager.areLocationPermissionsGranted(getContext())) {
             final LocationComponent locationComponent = mapboxMap.getLocationComponent();
-
             // Activate with options
             locationComponent.activateLocationComponent(
                     LocationComponentActivationOptions
-                            .builder(this.getContext(), loadedMapStyle)
+                            .builder(getContext(), loadedMapStyle)
                             .build());
-
-            // Enable to make component visible
             locationComponent.setLocationComponentEnabled(true);
-
-            // Set the component's camera mode
             locationComponent.setCameraMode(CameraMode.TRACKING);
-
-            // Set the component's render mode
             locationComponent.setRenderMode(RenderMode.COMPASS);
-
             locationComponent.addOnCameraTrackingChangedListener(new OnCameraTrackingChangedListener() {
                 @Override
                 public void onCameraTrackingDismissed() {
-                    myLocationButton.show();
+                        myLocationButton.show();
                 }
-
                 @Override
                 public void onCameraTrackingChanged(int currentMode) {
                 }
             });
+            locationComponent.getLocationComponentOptions().trackingInitialMoveThreshold();
+            locationComponent.getLocationComponentOptions().trackingMultiFingerMoveThreshold();
+            myLocationButton.setOnClickListener(v -> {
+                moveCameraTo(mapboxMap.getLocationComponent().getLastKnownLocation());
+            });
+            emailFab.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
+                        @Override
+                        public void onStyleLoaded(@NonNull Style style) {
+                            Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
+                            // Set the origin location to the Alhambra landmark in Granada, Spain.
+                            Point origin = Point.fromLngLat(currentLocation.getLongitude(), currentLocation.getLatitude());
 
+                            // Set the destination location to the Plaza del Triunfo in Granada, Spain.
+                            Point destination = Point.fromLngLat(-9.1187862,53.283891);
+
+                            initSource(style, origin, destination);
+
+                            initLayers(style, origin, destination);
+
+                            // Get the directions route from the Mapbox Directions API
+                            // getRoute(mapboxMap, origin, destination);
+                            getRouteCustom(mapboxMap, origin, destination);
+
+                        }
+                    });
+
+                    Snackbar.make(view, "Http call complete", Snackbar.LENGTH_LONG)
+                            .setAction("Action", null).show();
+                }
+            });
+        } else {
+            final LocationComponent locationComponent = mapboxMap.getLocationComponent();
+            // Activate with options
+            locationComponent.activateLocationComponent(
+                    LocationComponentActivationOptions
+                            .builder(getContext(), loadedMapStyle)
+                            .useDefaultLocationEngine(false)
+                            .build());
+            locationComponent.setLocationComponentEnabled(false);
+            locationComponent.setCameraMode(CameraMode.TRACKING);
+            locationComponent.setRenderMode(RenderMode.COMPASS);
             locationComponent.getLocationComponentOptions().trackingInitialMoveThreshold();
             locationComponent.getLocationComponentOptions().trackingMultiFingerMoveThreshold();
         }
     }
 
-    /**
-     * Add the route and marker sources to the map
-     */
     private void initSource(@NonNull Style loadedMapStyle, Point origin, Point destination) {
         loadedMapStyle.addSource(new GeoJsonSource(ROUTE_SOURCE_ID,
                 FeatureCollection.fromFeatures(new Feature[] {})));
@@ -218,9 +227,6 @@ public class HomeFragment extends Fragment implements
         loadedMapStyle.addSource(iconGeoJsonSource);
     }
 
-    /**
-     * Add the route and marker icon layers to the map
-     */
     private void initLayers(@NonNull Style loadedMapStyle, Point origin, Point destination) {
         LineLayer routeLayer = new LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID);
 
@@ -243,75 +249,6 @@ public class HomeFragment extends Fragment implements
                 iconIgnorePlacement(true),
                 iconAllowOverlap(true),
                 iconOffset(new Float[] {0f, -9f})));
-    }
-
-    /**
-     * Make a request to the Mapbox Directions API. Once successful, pass the route to the
-     * route layer.
-     * @param mapboxMap the Mapbox map object that the route will be drawn on
-     * @param origin      the starting point of the route
-     * @param destination the desired finish point of the route
-     */
-    private void getRoute(MapboxMap mapboxMap, Point origin, Point destination) {
-        MapboxService<DirectionsResponse, DirectionsService> client = MapboxDirections.builder()
-                .origin(origin)
-                .destination(destination)
-                .overview(DirectionsCriteria.OVERVIEW_FULL)
-                .profile(DirectionsCriteria.PROFILE_DRIVING)
-                .accessToken(getString(R.string.mapbox_access_token))
-                .build();
-        client.enqueueCall(new Callback<DirectionsResponse>() {
-            @Override
-            public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
-                Log.d(TAG, "call success with response: " + response);
-
-                // You can get the generic HTTP info about the response
-                Log.d(TAG, "Response code: " + response.code());
-                if (response.body() == null) {
-                    Log.d(TAG, "No routes found, make sure you set the right user and access token.");
-                    return;
-                } else if (response.body().routes().size() < 1) {
-                    Log.d(TAG, "No routes found");
-                    return;
-                }
-                Log.d(TAG, "Response from mapbox: " + response.body().toString());
-                // Get the directions route
-                DirectionsRoute currentRoute = response.body().routes().get(0);
-
-                // Make a toast which displays the route's distance
-                Toast.makeText(getContext(), String.format(
-                        getString(R.string.directions_activity_toast_message),
-                        currentRoute.distance()), Toast.LENGTH_SHORT).show();
-
-                if (mapboxMap != null) {
-                    mapboxMap.getStyle(new Style.OnStyleLoaded() {
-                        @Override
-                        public void onStyleLoaded(@NonNull Style style) {
-
-                            // Retrieve and update the source designated for showing the directions route
-                            GeoJsonSource source = style.getSourceAs(ROUTE_SOURCE_ID);
-
-                            // Create a LineString with the directions route's geometry and
-                            // reset the GeoJSON source for the route LineLayer source
-                            if (source != null) {
-                                Log.d(TAG, "onResponse: source != null");
-                                source.setGeoJson(FeatureCollection.fromFeature(
-                                        Feature.fromGeometry(LineString.fromPolyline(currentRoute.geometry(),
-                                                PRECISION_6))));
-                            }
-                        }
-                    });
-                }
-
-            }
-            @Override
-            public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
-                Log.e(TAG, "Error: " + throwable.getMessage());
-                Toast.makeText(getContext(), "Error: " + throwable.getMessage(),
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
-
     }
 
     private void getRouteCustom(MapboxMap mapboxMap, Point origin, Point destination) {
@@ -375,5 +312,33 @@ public class HomeFragment extends Fragment implements
             }
         });
 
+    }
+
+    // Define the events that the fragment will use to communicate
+    public interface ActivityPermissionListener extends PermissionsListener{
+        void requestLocationPermission(LocationPermissionCallback locationPermissionCallback);
+    }
+
+    public class LocationPermissionCallback {
+        MapboxMap mapboxMap;
+        Style style;
+
+        public LocationPermissionCallback(MapboxMap mapboxMap, Style style) {
+            this.mapboxMap = mapboxMap;
+            this.style = style;
+        }
+
+        public void onGrant() {
+            Log.d(TAG, "granted.. now enabling location component");
+            enableLocationComponent(style);
+        }
+        public void onDenial() {
+            Log.d(TAG, "denied.. should show location button");
+            enableLocationComponent(style);
+            myLocationButton.setOnClickListener(v -> {
+                permissionResultListener.requestLocationPermission(this);
+            });
+            myLocationButton.show();
+        }
     }
 }
