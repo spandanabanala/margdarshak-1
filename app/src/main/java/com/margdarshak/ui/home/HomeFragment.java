@@ -2,6 +2,7 @@ package com.margdarshak.ui.home;
 
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -14,7 +15,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelProviders;
+import androidx.lifecycle.ViewModelStore;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -51,6 +54,8 @@ import com.mapbox.mapboxsdk.utils.BitmapUtils;
 import com.margdarshak.MainActivity;
 import com.margdarshak.R;
 import com.margdarshak.routing.HttpCallHandler;
+import com.margdarshak.routing.MargdarshakDirection;
+import com.margdarshak.routing.OSRMService;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -85,11 +90,10 @@ public class HomeFragment extends Fragment implements
 
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
-        homeViewModel =
-                ViewModelProviders.of(this).get(HomeViewModel.class);
+        homeViewModel = new ViewModelProvider(ViewModelStore::new).get(HomeViewModel.class);
         View root = inflater.inflate(R.layout.fragment_home, container, false);
         final TextView textView = root.findViewById(R.id.text_home);
-        homeViewModel.getText().observe(this, new Observer<String>() {
+        homeViewModel.getText().observe(getViewLifecycleOwner(), new Observer<String>() {
             @Override
             public void onChanged(@Nullable String s) {
                 textView.setText(s);
@@ -136,22 +140,24 @@ public class HomeFragment extends Fragment implements
                             mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
                                 @Override
                                 public void onStyleLoaded(@NonNull Style style) {
-
+                                    Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
                                     // Set the origin location to the Alhambra landmark in Granada, Spain.
-                                    Point origin = Point.fromLngLat(-3.588098, 37.176164);
+                                    Point origin = Point.fromLngLat(currentLocation.getLongitude(), currentLocation.getLatitude());
 
                                     // Set the destination location to the Plaza del Triunfo in Granada, Spain.
-                                    Point destination = Point.fromLngLat(-3.601845, 37.184080);
+                                    Point destination = Point.fromLngLat(-9.1187862,53.283891);
 
                                     initSource(style, origin, destination);
 
                                     initLayers(style, origin, destination);
 
                                     // Get the directions route from the Mapbox Directions API
-                                    getRoute(mapboxMap, origin, destination);
+                                    // getRoute(mapboxMap, origin, destination);
+                                    getRouteCustom(mapboxMap, origin, destination);
+
                                 }
                             });
-                            // HttpCallHandler.getOSRMRoute();
+
                             Snackbar.make(view, "Http call complete", Snackbar.LENGTH_LONG)
                                     .setAction("Action", null).show();
                         }
@@ -247,7 +253,6 @@ public class HomeFragment extends Fragment implements
      * @param destination the desired finish point of the route
      */
     private void getRoute(MapboxMap mapboxMap, Point origin, Point destination) {
-        HttpCallHandler.getOSRMRoute(origin, destination);
         MapboxService<DirectionsResponse, DirectionsService> client = MapboxDirections.builder()
                 .origin(origin)
                 .destination(destination)
@@ -255,11 +260,11 @@ public class HomeFragment extends Fragment implements
                 .profile(DirectionsCriteria.PROFILE_DRIVING)
                 .accessToken(getString(R.string.mapbox_access_token))
                 .build();
-
         client.enqueueCall(new Callback<DirectionsResponse>() {
             @Override
             public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
                 Log.d(TAG, "call success with response: " + response);
+
                 // You can get the generic HTTP info about the response
                 Log.d(TAG, "Response code: " + response.code());
                 if (response.body() == null) {
@@ -269,7 +274,7 @@ public class HomeFragment extends Fragment implements
                     Log.d(TAG, "No routes found");
                     return;
                 }
-
+                Log.d(TAG, "Response from mapbox: " + response.body().toString());
                 // Get the directions route
                 DirectionsRoute currentRoute = response.body().routes().get(0);
 
@@ -297,6 +302,7 @@ public class HomeFragment extends Fragment implements
                         }
                     });
                 }
+
             }
             @Override
             public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
@@ -305,5 +311,69 @@ public class HomeFragment extends Fragment implements
                         Toast.LENGTH_SHORT).show();
             }
         });
+
+    }
+
+    private void getRouteCustom(MapboxMap mapboxMap, Point origin, Point destination) {
+        MapboxService<DirectionsResponse, OSRMService> client = MargdarshakDirection.builder()
+                .origin(origin)
+                .destination(destination)
+                .overview(DirectionsCriteria.OVERVIEW_FULL)
+                .profile(DirectionsCriteria.PROFILE_DRIVING)
+                .baseUrl("http://34.93.158.237:5000/")
+                .accessToken(getString(R.string.mapbox_access_token))
+                .build();
+        client.enqueueCall(new Callback<DirectionsResponse>() {
+            @Override
+            public void onResponse(Call<DirectionsResponse> call, Response<DirectionsResponse> response) {
+                Log.d(TAG, "call success with response: " + response);
+
+                // You can get the generic HTTP info about the response
+                Log.d(TAG, "Response code: " + response.code());
+                if (response.body() == null) {
+                    Log.d(TAG, "No routes found, make sure you set the right user and access token.");
+                    return;
+                } else if (response.body().routes().size() < 1) {
+                    Log.d(TAG, "No routes found");
+                    return;
+                }
+                Log.d(TAG, "Response from mapbox: " + response.body().toString());
+                // Get the directions route
+                DirectionsRoute currentRoute = response.body().routes().get(0);
+
+                // Make a toast which displays the route's distance
+                Toast.makeText(getContext(), String.format(
+                        getString(R.string.directions_activity_toast_message),
+                        currentRoute.distance()), Toast.LENGTH_SHORT).show();
+
+                if (mapboxMap != null) {
+                    mapboxMap.getStyle(new Style.OnStyleLoaded() {
+                        @Override
+                        public void onStyleLoaded(@NonNull Style style) {
+
+                            // Retrieve and update the source designated for showing the directions route
+                            GeoJsonSource source = style.getSourceAs(ROUTE_SOURCE_ID);
+
+                            // Create a LineString with the directions route's geometry and
+                            // reset the GeoJSON source for the route LineLayer source
+                            if (source != null) {
+                                Log.d(TAG, "onResponse: source != null");
+                                source.setGeoJson(FeatureCollection.fromFeature(
+                                        Feature.fromGeometry(LineString.fromPolyline(currentRoute.geometry(),
+                                                PRECISION_6))));
+                            }
+                        }
+                    });
+                }
+
+            }
+            @Override
+            public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
+                Log.e(TAG, "Error: " + throwable.getMessage());
+                Toast.makeText(getContext(), "Error: " + throwable.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+
     }
 }
