@@ -98,6 +98,7 @@ public class HomeFragment extends Fragment implements
                 style -> permissionResultListener.requestLocationPermission(new LocationPermissionCallback(mapboxMap, style)));
     }
 
+    @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
         HomeViewModel homeViewModel = new ViewModelProvider(ViewModelStore::new).get(HomeViewModel.class);

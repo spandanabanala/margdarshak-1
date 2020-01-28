@@ -3,6 +3,10 @@ package com.margdarshak;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.view.Menu;
+import android.view.View;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -14,11 +18,15 @@ import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.material.navigation.NavigationView;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.margdarshak.ui.home.HomeFragment.ActivityPermissionListener;
 import com.margdarshak.ui.home.HomeFragment.LocationPermissionCallback;
+import com.margdarshak.util.CommonConstants;
+import com.margdarshak.util.CommonUtil;
 
 import java.util.List;
 
@@ -35,18 +43,16 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         Mapbox.getInstance(getApplicationContext(), getString(R.string.mapbox_access_token));
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
-
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
         DrawerLayout drawer = findViewById(R.id.drawer_layout);
         NavigationView navigationView = findViewById(R.id.nav_view);
         // Passing each menu ID as a set of Ids because each
         // menu should be considered as top level destinations.
         mAppBarConfiguration = new AppBarConfiguration.Builder(
                 R.id.nav_home, R.id.nav_gallery, R.id.nav_slideshow,
-                R.id.nav_tools, R.id.nav_share, R.id.nav_send)
+                R.id.nav_tools, R.id.nav_share, R.id.nav_send, R.id.navigation_header_container)
                 .setDrawerLayout(drawer)
                 .build();
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
@@ -94,4 +100,12 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         this.locationPermissionCallback = locationPermissionCallback;
         permissionsManager.requestLocationPermissions(this);
     }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        CommonUtil.updateSignInResult(account, CommonConstants.ACTIVITY_MAIN, this);
+    }
+
 }
