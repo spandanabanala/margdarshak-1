@@ -1,7 +1,6 @@
 package com.margdarshak.routing;
 
 import com.mapbox.api.directions.v5.DirectionsService;
-import com.mapbox.api.directions.v5.MapboxDirections;
 import com.mapbox.api.directions.v5.models.DirectionsResponse;
 
 import retrofit2.Call;

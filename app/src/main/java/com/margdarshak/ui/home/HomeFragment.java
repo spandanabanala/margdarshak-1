@@ -9,25 +9,21 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelStore;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textfield.TextInputLayout;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
-import com.mapbox.api.directions.v5.DirectionsService;
-import com.mapbox.api.directions.v5.MapboxDirections;
 import com.mapbox.api.directions.v5.models.DirectionsResponse;
 import com.mapbox.api.directions.v5.models.DirectionsRoute;
 import com.mapbox.core.MapboxService;
@@ -72,38 +68,55 @@ import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.lineWidth;
 public class HomeFragment extends Fragment implements
         OnMapReadyCallback {
 
-    public static final String TAG = HomeFragment.class.getSimpleName();
-    private HomeViewModel homeViewModel;
-    private MapboxMap mapboxMap;
-    private MapView mapView;
-    FloatingActionButton myLocationButton;
-    private FusedLocationProviderClient fusedLocationClient;
-    FloatingActionButton emailFab;
-    private ActivityPermissionListener permissionResultListener;
+    private static final String TAG = HomeFragment.class.getSimpleName();
     private static final String ROUTE_LAYER_ID = "route-layer-id";
     private static final String ROUTE_SOURCE_ID = "route-source-id";
     private static final String ICON_LAYER_ID = "icon-layer-id";
     private static final String ICON_SOURCE_ID = "icon-source-id";
     private static final String RED_PIN_ICON_ID = "red-pin-icon-id";
+    private MapboxMap mapboxMap;
+    private FloatingActionButton myLocationButton;
+    private FloatingActionButton getDirectionButton;
+    private ActivityPermissionListener permissionResultListener;
+    private TextInputLayout searchTextBox;
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        if (context instanceof ActivityPermissionListener) {
+            permissionResultListener = (ActivityPermissionListener) context;
+        } else {
+            throw new ClassCastException(context.toString()
+                    + " must implement ActivityPermissionListener");
+        }
+    }
+
+    @Override
+    public void onMapReady(@NonNull MapboxMap mapboxMap) {
+        this.mapboxMap = mapboxMap;
+        mapboxMap.setStyle(Style.MAPBOX_STREETS,
+                style -> permissionResultListener.requestLocationPermission(new LocationPermissionCallback(mapboxMap, style)));
+    }
 
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
-        homeViewModel = new ViewModelProvider(ViewModelStore::new).get(HomeViewModel.class);
+        HomeViewModel homeViewModel = new ViewModelProvider(ViewModelStore::new).get(HomeViewModel.class);
         View root = inflater.inflate(R.layout.fragment_home, container, false);
         final TextView textView = root.findViewById(R.id.text_home);
-        homeViewModel.getText().observe(getViewLifecycleOwner(), new Observer<String>() {
-            @Override
-            public void onChanged(@Nullable String s) {
-                textView.setText(s);
-            }
-        });
-        emailFab = root.findViewById(R.id.fabEmail);
-        mapView = root.findViewById(R.id.mapView);
+        homeViewModel.getText().observe(getViewLifecycleOwner(), s -> textView.setText(s));
+        getDirectionButton = root.findViewById(R.id.get_directions);
+        MapView mapView = root.findViewById(R.id.mapView);
         myLocationButton = root.findViewById(R.id.locationFAB);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(getActivity());
-
+        searchTextBox = root.findViewById(R.id.search_box);
+        searchTextBox.setEndIconOnClickListener(view -> {
+            String searchText = this.searchTextBox.getEditText().getText().toString();
+            Log.d(TAG, "You searched for: " + searchText);
+            InputMethodManager inputManager = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            inputManager.hideSoftInputFromWindow(searchTextBox.getWindowToken(),InputMethodManager.HIDE_NOT_ALWAYS);
+            searchTextBox.clearFocus();
+        });
         return root;
     }
 
@@ -124,26 +137,6 @@ public class HomeFragment extends Fragment implements
                 myLocationButton.hide();
             }
         });
-    }
-
-    @Override
-    public void onAttach(Context context) {
-        super.onAttach(context);
-        if (context instanceof ActivityPermissionListener) {
-            permissionResultListener = (ActivityPermissionListener) context;
-        } else {
-            throw new ClassCastException(context.toString()
-                    + " must implement ActivityPermissionListener");
-        }
-    }
-
-    @Override
-    public void onMapReady(@NonNull MapboxMap mapboxMap) {
-        this.mapboxMap = mapboxMap;
-        mapboxMap.setStyle(Style.MAPBOX_STREETS,
-                style -> {
-                    permissionResultListener.requestLocationPermission(new LocationPermissionCallback(mapboxMap, style));
-                });
     }
 
     @SuppressWarnings( {"MissingPermission"})
@@ -170,36 +163,27 @@ public class HomeFragment extends Fragment implements
             });
             locationComponent.getLocationComponentOptions().trackingInitialMoveThreshold();
             locationComponent.getLocationComponentOptions().trackingMultiFingerMoveThreshold();
-            myLocationButton.setOnClickListener(v -> {
-                moveCameraTo(mapboxMap.getLocationComponent().getLastKnownLocation());
-            });
-            emailFab.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
-                        @Override
-                        public void onStyleLoaded(@NonNull Style style) {
-                            Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
-                            // Set the origin location to the Alhambra landmark in Granada, Spain.
-                            Point origin = Point.fromLngLat(currentLocation.getLongitude(), currentLocation.getLatitude());
+            myLocationButton.setOnClickListener(v -> moveCameraTo(mapboxMap.getLocationComponent().getLastKnownLocation()));
+            getDirectionButton.setOnClickListener(view -> {
+                    mapboxMap.setStyle(Style.MAPBOX_STREETS, style -> {
+                        Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
+                        // Set the origin location to the Alhambra landmark in Granada, Spain.
+                        Point origin = Point.fromLngLat(currentLocation.getLongitude(), currentLocation.getLatitude());
 
-                            // Set the destination location to the Plaza del Triunfo in Granada, Spain.
-                            Point destination = Point.fromLngLat(-9.1187862,53.283891);
+                        // Set the destination location to the Plaza del Triunfo in Granada, Spain.
+                        Point destination = Point.fromLngLat(-9.1187862,53.283891);
 
-                            initSource(style, origin, destination);
+                        initSource(style, origin, destination);
 
-                            initLayers(style, origin, destination);
+                        initLayers(style);
 
-                            // Get the directions route from the Mapbox Directions API
-                            // getRoute(mapboxMap, origin, destination);
-                            getRouteCustom(mapboxMap, origin, destination);
+                        // Get the directions route from the Mapbox Directions API
+                        // getRoute(mapboxMap, origin, destination);
+                        getRouteCustom(mapboxMap, origin, destination);
 
-                        }
                     });
-
                     Snackbar.make(view, "Http call complete", Snackbar.LENGTH_LONG)
                             .setAction("Action", null).show();
-                }
             });
         } else {
             final LocationComponent locationComponent = mapboxMap.getLocationComponent();
@@ -227,7 +211,7 @@ public class HomeFragment extends Fragment implements
         loadedMapStyle.addSource(iconGeoJsonSource);
     }
 
-    private void initLayers(@NonNull Style loadedMapStyle, Point origin, Point destination) {
+    private void initLayers(@NonNull Style loadedMapStyle) {
         LineLayer routeLayer = new LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID);
 
         // Add the LineLayer to the map. This layer will display the directions route.
@@ -284,25 +268,20 @@ public class HomeFragment extends Fragment implements
                         currentRoute.distance()), Toast.LENGTH_SHORT).show();
 
                 if (mapboxMap != null) {
-                    mapboxMap.getStyle(new Style.OnStyleLoaded() {
-                        @Override
-                        public void onStyleLoaded(@NonNull Style style) {
+                    mapboxMap.getStyle( style -> {
+                        // Retrieve and update the source designated for showing the directions route
+                        GeoJsonSource source = style.getSourceAs(ROUTE_SOURCE_ID);
 
-                            // Retrieve and update the source designated for showing the directions route
-                            GeoJsonSource source = style.getSourceAs(ROUTE_SOURCE_ID);
-
-                            // Create a LineString with the directions route's geometry and
-                            // reset the GeoJSON source for the route LineLayer source
-                            if (source != null) {
-                                Log.d(TAG, "onResponse: source != null");
-                                source.setGeoJson(FeatureCollection.fromFeature(
-                                        Feature.fromGeometry(LineString.fromPolyline(currentRoute.geometry(),
-                                                PRECISION_6))));
-                            }
+                        // Create a LineString with the directions route's geometry and
+                        // reset the GeoJSON source for the route LineLayer source
+                        if (source != null) {
+                            Log.d(TAG, "onResponse: source != null");
+                            source.setGeoJson(FeatureCollection.fromFeature(
+                                    Feature.fromGeometry(LineString.fromPolyline(currentRoute.geometry(),
+                                            PRECISION_6))));
                         }
                     });
                 }
-
             }
             @Override
             public void onFailure(Call<DirectionsResponse> call, Throwable throwable) {
@@ -335,9 +314,7 @@ public class HomeFragment extends Fragment implements
         public void onDenial() {
             Log.d(TAG, "denied.. should show location button");
             enableLocationComponent(style);
-            myLocationButton.setOnClickListener(v -> {
-                permissionResultListener.requestLocationPermission(this);
-            });
+            myLocationButton.setOnClickListener(v -> permissionResultListener.requestLocationPermission(this));
             myLocationButton.show();
         }
     }

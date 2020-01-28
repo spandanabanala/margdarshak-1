@@ -2,7 +2,6 @@ package com.margdarshak;
 
 import android.os.Bundle;
 import android.os.StrictMode;
-import android.util.Log;
 import android.view.Menu;
 import android.widget.Toast;
 
@@ -25,7 +24,6 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ActivityPermissionListener {
 
-    public static final String TAG = MainActivity.class.getSimpleName();
     private AppBarConfiguration mAppBarConfiguration;
     private PermissionsManager permissionsManager;
     private LocationPermissionCallback locationPermissionCallback;
@@ -73,23 +71,19 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        Log.d(TAG, "result received.." + requestCode +" "+ permissions[0] +" "+ grantResults[0]);
         permissionsManager.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override
     public void onExplanationNeeded(List<String> permissionsToExplain) {
-        Log.d(TAG, "explanation displayed.." + locationPermissionCallback);
         Toast.makeText(this, R.string.user_location_permission_explanation, Toast.LENGTH_LONG).show();
     }
 
     @Override
     public void onPermissionResult(boolean granted) {
         if (granted) {
-            Log.d(TAG, "granted.. calling callback" + locationPermissionCallback);
             locationPermissionCallback.onGrant();
         } else {
-            Log.d(TAG, "denied.. calling callback" + locationPermissionCallback);
             Toast.makeText(this, R.string.user_location_permission_not_granted, Toast.LENGTH_LONG).show();
             locationPermissionCallback.onDenial();
         }
@@ -99,6 +93,5 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
     public void requestLocationPermission(LocationPermissionCallback locationPermissionCallback) {
         this.locationPermissionCallback = locationPermissionCallback;
         permissionsManager.requestLocationPermissions(this);
-        Log.d(TAG, "location permission request sent.." + locationPermissionCallback);
     }
 }
