@@ -2,6 +2,8 @@ package com.margdarshak;
 
 import android.os.Bundle;
 import android.os.StrictMode;
+import android.util.Log;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.View;
 import android.widget.ImageView;
@@ -12,9 +14,14 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.navigation.NavController;
+import androidx.navigation.NavDestination;
 import androidx.navigation.Navigation;
+import androidx.navigation.Navigator;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
@@ -25,6 +32,7 @@ import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.margdarshak.ui.home.HomeFragment.ActivityPermissionListener;
 import com.margdarshak.ui.home.HomeFragment.LocationPermissionCallback;
+import com.margdarshak.ui.ui.login.LoginActivity;
 import com.margdarshak.util.CommonConstants;
 import com.margdarshak.util.CommonUtil;
 
@@ -32,6 +40,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ActivityPermissionListener {
 
+    private static final String TAG = MainActivity.class.getSimpleName();;
     private AppBarConfiguration mAppBarConfiguration;
     private PermissionsManager permissionsManager;
     private LocationPermissionCallback locationPermissionCallback;
@@ -58,6 +67,12 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
         NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
         NavigationUI.setupWithNavController(navigationView, navController);
+        navigationView.getHeaderView(0).setClickable(true);
+        navigationView.getHeaderView(0).setOnClickListener(v -> {
+            //loadLoginFragment(new LoginActivity());
+            navController.navigate(R.id.navigation_header_container);
+            drawer.closeDrawer(Gravity.LEFT);
+        });
         permissionsManager = new PermissionsManager(this);
     }
 
@@ -108,4 +123,9 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         CommonUtil.updateSignInResult(account, CommonConstants.ACTIVITY_MAIN, this);
     }
 
+    public void loadLoginFragment(Fragment fragment) {
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        Log.d(TAG, "Fragment to replace" + fragment.toString());
+        transaction.add(R.id.nav_host_fragment, fragment).commit();
+    }
 }

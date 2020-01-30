@@ -40,4 +40,15 @@
         android:name="com.margdarshak.ui.send.SendFragment"
         android:label="@string/menu_send"
         tools:layout="@layout/fragment_send" />
+
+    <fragment
+        android:id="@+id/navigation_header_container"
+        android:name="com.margdarshak.ui.ui.login.LoginActivity"
+        android:label="Login"
+        tools:layout="@layout/login_activity">
+
+        <!--<action android:id="@+id/action_login_fragment_to_register_fragment"
+            app:destination="@id/registration_graph" />-->
+
+    </fragment>
 </navigation>

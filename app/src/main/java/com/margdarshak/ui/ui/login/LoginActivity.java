@@ -54,8 +54,10 @@ public class LoginActivity extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
-        loginViewModel = new ViewModelProvider(ViewModelStore::new).get(LoginViewModel.class);
-        View root = inflater.inflate(R.layout.fragment_home, container, false);
+        super.onCreateView(inflater, container, savedInstanceState);
+        //loginViewModel = ViewModelProviders.of(requireActivity()).get(LoginViewModel.class);
+        loginViewModel = new LoginViewModelFactory().create(LoginViewModel.class);
+        View root = inflater.inflate(R.layout.login_activity, container, false);
 
         final EditText usernameEditText = root.findViewById(R.id.username);
         final EditText passwordEditText = root.findViewById(R.id.password);
@@ -147,6 +149,7 @@ public class LoginActivity extends Fragment {
         root.findViewById(R.id.google_signin).setOnClickListener(v -> {
             signInWithGoogle();
         });
+        Log.d(TAG, "login view created");
         return root;
     }
     /*
