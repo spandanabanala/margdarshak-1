@@ -14,7 +14,7 @@ import com.margdarshak.R;
 
 public class CommonUtil {
 
-    public static void updateSignInResult(GoogleSignInAccount account, int screenID, FragmentActivity activity) {
+    /*public static void updateSignInResult(GoogleSignInAccount account, int screenID, FragmentActivity activity) {
         if(account != null) {
             // Modify App navigation bar
             ((TextView) activity.findViewById(R.id.username)).setText(account.getDisplayName());
@@ -28,5 +28,5 @@ public class CommonUtil {
         } else {
             Toast.makeText(activity.getApplicationContext(), "Not signed in to Google", Toast.LENGTH_SHORT).show();
         }
-    }
+    }*/
 }

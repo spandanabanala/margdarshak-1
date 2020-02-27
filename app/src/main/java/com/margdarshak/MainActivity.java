@@ -5,23 +5,18 @@ import android.os.StrictMode;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.Menu;
-import android.view.View;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.navigation.NavController;
-import androidx.navigation.NavDestination;
 import androidx.navigation.Navigation;
-import androidx.navigation.Navigator;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
@@ -32,9 +27,8 @@ import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.margdarshak.ui.home.HomeFragment.ActivityPermissionListener;
 import com.margdarshak.ui.home.HomeFragment.LocationPermissionCallback;
-import com.margdarshak.ui.ui.login.LoginActivity;
-import com.margdarshak.util.CommonConstants;
-import com.margdarshak.util.CommonUtil;
+import com.margdarshak.util.CircleTransformation;
+import com.squareup.picasso.Picasso;
 
 import java.util.List;
 
@@ -69,11 +63,24 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         NavigationUI.setupWithNavController(navigationView, navController);
         navigationView.getHeaderView(0).setClickable(true);
         navigationView.getHeaderView(0).setOnClickListener(v -> {
-            //loadLoginFragment(new LoginActivity());
-            navController.navigate(R.id.navigation_header_container);
+            //loadLoginFragment(new LoginFragment());
+            navController.navigate(R.id.navigation_login);
             drawer.closeDrawer(Gravity.LEFT);
         });
         permissionsManager = new PermissionsManager(this);
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        if(account != null) {
+            ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(account.getDisplayName());
+            ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(account.getEmail());
+            Picasso.get().load(account.getPhotoUrl()).transform(new CircleTransformation()).into(((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture)));
+
+            // Modify login screen
+            // TODO
+
+        } else {
+            Toast.makeText(getApplicationContext(), "Not signed in to Google", Toast.LENGTH_SHORT).show();
+        }
+
     }
 
     @Override
@@ -119,8 +126,6 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
     @Override
     protected void onStart() {
         super.onStart();
-        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-        CommonUtil.updateSignInResult(account, CommonConstants.ACTIVITY_MAIN, this);
     }
 
     public void loadLoginFragment(Fragment fragment) {

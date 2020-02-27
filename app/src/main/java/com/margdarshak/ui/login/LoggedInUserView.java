@@ -1,4 +1,4 @@
-package com.margdarshak.ui.ui.login;
+package com.margdarshak.ui.login;
 
 /**
  * Class exposing authenticated user details to the UI.

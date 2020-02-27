@@ -42,10 +42,10 @@
         tools:layout="@layout/fragment_send" />
 
     <fragment
-        android:id="@+id/navigation_header_container"
-        android:name="com.margdarshak.ui.ui.login.LoginActivity"
+        android:id="@+id/navigation_login"
+        android:name="com.margdarshak.ui.login.LoginFragment"
         android:label="Login"
-        tools:layout="@layout/login_activity">
+        tools:layout="@layout/fragment_login">
 
         <!--<action android:id="@+id/action_login_fragment_to_register_fragment"
             app:destination="@id/registration_graph" />-->

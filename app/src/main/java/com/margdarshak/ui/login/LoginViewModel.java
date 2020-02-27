@@ -1,4 +1,4 @@
-package com.margdarshak.ui.ui.login;
+package com.margdarshak.ui.login;
 
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
