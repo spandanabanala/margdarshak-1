@@ -1,17 +1,30 @@
 package com.margdarshak.ui.login;
 
+import android.net.Uri;
+
 /**
  * Class exposing authenticated user details to the UI.
  */
 class LoggedInUserView {
-    private String displayName;
-    //... other data fields that may be accessible to the UI
+    private String userName;
+    private String userEmail;
+    private Uri photoURI;
 
-    LoggedInUserView(String displayName) {
-        this.displayName = displayName;
+    LoggedInUserView(String userName, String userEmail, Uri photoURI) {
+        this.userName = userName;
+        this.userEmail = userEmail;
+        this.photoURI = photoURI;
     }
 
-    String getDisplayName() {
-        return displayName;
+    public String getUserName() {
+        return userName;
+    }
+
+    public String getUserEmail() {
+        return userEmail;
+    }
+
+    public Uri getPhotoURI() {
+        return photoURI;
     }
 }

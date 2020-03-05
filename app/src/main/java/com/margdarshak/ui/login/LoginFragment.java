@@ -9,6 +9,7 @@ import android.os.Bundle;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.lifecycle.ViewModelProviders;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
 
@@ -47,18 +48,14 @@ public class LoginFragment extends Fragment {
     private GoogleSignInClient mGoogleSignInClient;
 
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater,
-                             ViewGroup container, Bundle savedInstanceState) {
-        super.onCreateView(inflater, container, savedInstanceState);
-        //loginViewModel = ViewModelProviders.of(requireActivity()).get(LoginViewModel.class);
-        loginViewModel = new LoginViewModelFactory().create(LoginViewModel.class);
-        View root = inflater.inflate(R.layout.fragment_login, container, false);
-
-        final EditText usernameEditText = root.findViewById(R.id.username);
-        final EditText passwordEditText = root.findViewById(R.id.password);
-        final Button loginButton = root.findViewById(R.id.login);
-        final SignInButton googleSignIn = root.findViewById(R.id.google_signin);
-        final ProgressBar loadingProgressBar = root.findViewById(R.id.loading);
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        final EditText usernameEditText = view.findViewById(R.id.username);
+        final EditText passwordEditText = view.findViewById(R.id.password);
+        final Button loginButton = view.findViewById(R.id.login);
+        final SignInButton googleSignIn = view.findViewById(R.id.google_signin);
+        final ProgressBar loadingProgressBar = view.findViewById(R.id.loading);
+        final NavController navController = Navigation.findNavController(view);
 
         loginViewModel.getLoginFormState().observe(getViewLifecycleOwner(), new Observer<LoginFormState>() {
             @Override
@@ -82,14 +79,14 @@ public class LoginFragment extends Fragment {
                 if (loginResult == null) {
                     return;
                 }
-                //loadingProgressBar.setVisibility(View.GONE);
+                loadingProgressBar.setVisibility(View.GONE);
                 if (loginResult.getError() != null) {
-                    showLoginFailed(loginResult.getError());
+                    showLoginFailed(R.string.login_failed);
                 }
                 if (loginResult.getSuccess() != null) {
                     updateUiWithUser(loginResult.getSuccess());
-                    final NavController navController = Navigation.findNavController(getActivity(),R.id.nav_host_fragment);
                     navController.popBackStack();
+                    navController.navigate(R.id.nav_profile);
                 }
             }
         });
@@ -144,6 +141,15 @@ public class LoginFragment extends Fragment {
         googleSignIn.setOnClickListener(v -> {
             signInWithGoogle();
         });
+    }
+
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             ViewGroup container, Bundle savedInstanceState) {
+        super.onCreateView(inflater, container, savedInstanceState);
+        loginViewModel = new LoginViewModelFactory().create(LoginViewModel.class);
+        View root = inflater.inflate(R.layout.fragment_login, container, false);
+
         return root;
     }
 
@@ -170,13 +176,8 @@ public class LoginFragment extends Fragment {
             GoogleSignInAccount account = completedTask.getResult(ApiException.class);
             // Signed in successfully, show authenticated UI.
             if(account != null) {
-                NavigationView navigationView = getActivity().findViewById(R.id.nav_view);
-                ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(account.getDisplayName());
-                ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(account.getEmail());
-                Picasso.get().load(account.getPhotoUrl()).transform(new CircleTransformation()).into(((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture)));
 
-                final NavController navController = Navigation.findNavController(getActivity(),R.id.nav_host_fragment);
-                navController.popBackStack();
+                loginViewModel.setSuccessResult(account.getDisplayName(), account.getEmail(), account.getPhotoUrl());
 
                 // Modify login screen
                 // TODO
@@ -186,14 +187,17 @@ public class LoginFragment extends Fragment {
             // The ApiException status code indicates the detailed failure reason.
             // Please refer to the GoogleSignInStatusCodes class reference for more information.
             Log.w(TAG, "signInResult:failed code=" + e.getStatusCode());
-            Toast.makeText(getContext(), e.getStatusCode(), Toast.LENGTH_SHORT).show();
+            loginViewModel.setErrorResult(e.getStatusCode());
         }
     }
 
     private void updateUiWithUser(LoggedInUserView model) {
-        String welcome = getString(R.string.welcome) + model.getDisplayName();
-        // TODO : initiate successful logged in experience
+        String welcome = getString(R.string.welcome, model.getUserName());
         Toast.makeText(getContext(), welcome, Toast.LENGTH_LONG).show();
+        NavigationView navigationView = getActivity().findViewById(R.id.nav_view);
+        ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(model.getUserName());
+        ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(model.getUserEmail());
+        Picasso.get().load(model.getPhotoURI()).transform(new CircleTransformation()).into((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture));
     }
 
     private void showLoginFailed(@StringRes Integer errorString) {

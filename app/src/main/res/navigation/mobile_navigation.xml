@@ -51,4 +51,10 @@
             app:destination="@id/registration_graph" />-->
 
     </fragment>
+
+    <fragment
+        android:id="@+id/nav_profile"
+        android:name="com.margdarshak.ui.login.ProfileFragment"
+        android:label="Profile"
+        tools:layout="@layout/fragment_profile"/>
 </navigation>

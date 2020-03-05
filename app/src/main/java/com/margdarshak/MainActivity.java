@@ -34,7 +34,7 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements ActivityPermissionListener {
 
-    private static final String TAG = MainActivity.class.getSimpleName();;
+    private static final String TAG = MainActivity.class.getSimpleName();
     private AppBarConfiguration mAppBarConfiguration;
     private PermissionsManager permissionsManager;
     private LocationPermissionCallback locationPermissionCallback;
@@ -61,25 +61,27 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
         NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
         NavigationUI.setupWithNavController(navigationView, navController);
+
+        permissionsManager = new PermissionsManager(this);
+
         navigationView.getHeaderView(0).setClickable(true);
         navigationView.getHeaderView(0).setOnClickListener(v -> {
             //loadLoginFragment(new LoginFragment());
-            navController.navigate(R.id.navigation_login);
+            int navigateOnHeader;
+            GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+            if(account != null) {
+                navigateOnHeader = R.id.nav_profile;
+
+                // Modify login screen
+                // TODO
+
+            } else {
+                Toast.makeText(getApplicationContext(), "Not signed in to Google", Toast.LENGTH_SHORT).show();
+                navigateOnHeader = R.id.navigation_login;
+            }
+            navController.navigate(navigateOnHeader);
             drawer.closeDrawer(Gravity.LEFT);
         });
-        permissionsManager = new PermissionsManager(this);
-        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-        if(account != null) {
-            ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(account.getDisplayName());
-            ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(account.getEmail());
-            Picasso.get().load(account.getPhotoUrl()).transform(new CircleTransformation()).into(((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture)));
-
-            // Modify login screen
-            // TODO
-
-        } else {
-            Toast.makeText(getApplicationContext(), "Not signed in to Google", Toast.LENGTH_SHORT).show();
-        }
 
     }
 
