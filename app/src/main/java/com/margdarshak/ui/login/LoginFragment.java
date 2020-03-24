@@ -197,7 +197,9 @@ public class LoginFragment extends Fragment {
         NavigationView navigationView = getActivity().findViewById(R.id.nav_view);
         ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(model.getUserName());
         ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(model.getUserEmail());
-        Picasso.get().load(model.getPhotoURI()).transform(new CircleTransformation()).into((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture));
+        if (model.getPhotoURI() != null) {
+            Picasso.get().load(model.getPhotoURI()).transform(new CircleTransformation()).into((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture));
+        }
     }
 
     private void showLoginFailed(@StringRes Integer errorString) {

@@ -63,20 +63,23 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         NavigationUI.setupWithNavController(navigationView, navController);
 
         permissionsManager = new PermissionsManager(this);
-
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        if(account !=  null) {
+            updateUiWithUser(account);
+        }
         navigationView.getHeaderView(0).setClickable(true);
         navigationView.getHeaderView(0).setOnClickListener(v -> {
             //loadLoginFragment(new LoginFragment());
             int navigateOnHeader;
-            GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
-            if(account != null) {
+            GoogleSignInAccount current_account = GoogleSignIn.getLastSignedInAccount(this);
+            if(current_account != null) {
                 navigateOnHeader = R.id.nav_profile;
 
                 // Modify login screen
                 // TODO
 
             } else {
-                Toast.makeText(getApplicationContext(), "Not signed in to Google", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getApplicationContext(), "Not signed in", Toast.LENGTH_SHORT).show();
                 navigateOnHeader = R.id.navigation_login;
             }
             navController.navigate(navigateOnHeader);
@@ -130,9 +133,14 @@ public class MainActivity extends AppCompatActivity implements ActivityPermissio
         super.onStart();
     }
 
-    public void loadLoginFragment(Fragment fragment) {
-        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-        Log.d(TAG, "Fragment to replace" + fragment.toString());
-        transaction.add(R.id.nav_host_fragment, fragment).commit();
+    public void updateUiWithUser(GoogleSignInAccount account) {
+        String welcome = getString(R.string.welcome, account.getDisplayName());
+        Toast.makeText(getApplicationContext(), welcome, Toast.LENGTH_LONG).show();
+        NavigationView navigationView = findViewById(R.id.nav_view);
+        ((TextView) navigationView.getHeaderView(0).findViewById(R.id.username)).setText(account.getDisplayName());
+        ((TextView) navigationView.getHeaderView(0).findViewById(R.id.usermail)).setText(account.getEmail());
+        if(account.getPhotoUrl() != null) {
+            Picasso.get().load(account.getPhotoUrl()).transform(new CircleTransformation()).into((ImageView) navigationView.getHeaderView(0).findViewById(R.id.userpicture));
+        }
     }
 }
