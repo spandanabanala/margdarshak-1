@@ -40,4 +40,21 @@
         android:name="com.margdarshak.ui.send.SendFragment"
         android:label="@string/menu_send"
         tools:layout="@layout/fragment_send" />
+
+    <fragment
+        android:id="@+id/navigation_login"
+        android:name="com.margdarshak.ui.login.LoginFragment"
+        android:label="Login"
+        tools:layout="@layout/fragment_login">
+
+        <!--<action android:id="@+id/action_login_fragment_to_register_fragment"
+            app:destination="@id/registration_graph" />-->
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/nav_profile"
+        android:name="com.margdarshak.ui.login.ProfileFragment"
+        android:label="Profile"
+        tools:layout="@layout/fragment_profile"/>
 </navigation>
