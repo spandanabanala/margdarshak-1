@@ -6,26 +6,30 @@ import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelStore;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.mapbox.android.core.permissions.PermissionsListener;
 import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
 import com.mapbox.api.directions.v5.models.DirectionsResponse;
 import com.mapbox.api.directions.v5.models.DirectionsRoute;
+import com.mapbox.api.geocoding.v5.models.CarmenFeature;
 import com.mapbox.core.MapboxService;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
@@ -43,6 +47,9 @@ import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.maps.Style;
+import com.mapbox.mapboxsdk.plugins.places.autocomplete.model.PlaceOptions;
+import com.mapbox.mapboxsdk.plugins.places.autocomplete.ui.PlaceAutocompleteFragment;
+import com.mapbox.mapboxsdk.plugins.places.autocomplete.ui.PlaceSelectionListener;
 import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.SymbolLayer;
@@ -78,7 +85,8 @@ public class HomeFragment extends Fragment implements
     private FloatingActionButton myLocationButton;
     private FloatingActionButton getDirectionButton;
     private ActivityPermissionListener permissionResultListener;
-    private TextInputLayout searchTextBox;
+    private FrameLayout searchFragmentContainer;
+    private TextInputEditText searchTextBox;
 
     @Override
     public void onAttach(Context context) {
@@ -110,7 +118,11 @@ public class HomeFragment extends Fragment implements
         myLocationButton = root.findViewById(R.id.locationFAB);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
-        searchTextBox = root.findViewById(R.id.search_box);
+
+        searchFragmentContainer = root.findViewById(R.id.search_fragment_container);
+        searchTextBox = root.findViewById(R.id.search_box_text);
+        searchFragmentContainer.setClipToOutline(true);
+        /*
         searchTextBox.setEndIconOnClickListener(view -> {
             String searchText = this.searchTextBox.getEditText().getText().toString();
             Log.d(TAG, "You searched for: " + searchText);
@@ -118,13 +130,74 @@ public class HomeFragment extends Fragment implements
             inputManager.hideSoftInputFromWindow(searchTextBox.getWindowToken(),InputMethodManager.HIDE_NOT_ALWAYS);
             searchTextBox.clearFocus();
         });
+        */
+
+        PlaceAutocompleteFragment autocompleteFragment;
+        if (savedInstanceState == null) {
+            PlaceOptions placeOptions = PlaceOptions.builder()
+                    .backgroundColor(getResources().getColor(R.color.colorWhite, null))
+                    .build(PlaceOptions.MODE_FULLSCREEN);
+            autocompleteFragment = PlaceAutocompleteFragment.newInstance(getContext()
+                    .getResources().getString(R.string.mapbox_access_token), placeOptions);
+
+            final FragmentTransaction transaction = getChildFragmentManager().beginTransaction();
+            transaction
+                    .add(R.id.search_fragment_container, autocompleteFragment, TAG)
+                    .hide(autocompleteFragment)
+                    .commit();
+        } else {
+            autocompleteFragment = (PlaceAutocompleteFragment)
+                    getParentFragmentManager().findFragmentByTag(TAG);
+        }
+        autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
+            @Override
+            public void onPlaceSelected(CarmenFeature carmenFeature) {
+                Toast.makeText(getContext(), carmenFeature.center().toJson(), Toast.LENGTH_LONG).show();
+                Log.i(TAG, "something wrong with location: " + carmenFeature.toJson());
+                Location targetLocation = new Location("");
+                targetLocation.setLatitude(carmenFeature.center().coordinates().get(0));
+                targetLocation.setLongitude(carmenFeature.center().coordinates().get(1));
+                Log.i(TAG, "place selected moving camera to : " + targetLocation.toString());
+                moveCameraTo(targetLocation);
+                finish();
+            }
+
+            @Override
+            public void onCancel() {
+                finish();
+            }
+
+            private void finish(){
+                getChildFragmentManager().beginTransaction()
+                        .hide(autocompleteFragment)
+                        .commit();
+                searchTextBox.clearFocus();
+            }
+        });
+        searchTextBox.setOnFocusChangeListener((view, b) -> {
+            if(b) {
+                Log.d(TAG, "inside on focus" );
+                autocompleteFragment.getView().setFocusableInTouchMode(true);
+                autocompleteFragment.getView().requestFocus();
+                autocompleteFragment.getView().setOnKeyListener((v, keyCode, keyEvent) -> {
+                    if(keyCode == KeyEvent.KEYCODE_BACK){
+                        autocompleteFragment.onBackButtonPress();
+                        return true;
+                    }
+                    return false;
+                });
+                getChildFragmentManager().beginTransaction().show(autocompleteFragment).commit();
+                searchTextBox.clearFocus();
+            }
+        });
         return root;
     }
 
-    private void moveCameraTo(Location target) {
+    private void moveCameraTo(Location location) {
         // Toggle GPS position updates
+        Log.d(TAG, "moving camera to latitude: " + location.getLatitude() + " longitude " + location.getLongitude());
         CameraPosition position = new CameraPosition.Builder()
-                .target(new LatLng(target))
+                .target(new LatLng(location))
                 .zoom(14) // Sets the zoom
                 .build(); // Creates a CameraPosition from the builder
         mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), 2000, new MapboxMap.CancelableCallback() {
