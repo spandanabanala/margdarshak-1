@@ -3,8 +3,8 @@ package com.margdarshak.ui.home;
 import android.content.Context;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.location.Location;
-import android.opengl.Visibility;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.cardview.widget.CardView;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelStore;
@@ -34,8 +35,12 @@ import com.mapbox.android.core.permissions.PermissionsManager;
 import com.mapbox.api.directions.v5.DirectionsCriteria;
 import com.mapbox.api.directions.v5.models.DirectionsResponse;
 import com.mapbox.api.directions.v5.models.DirectionsRoute;
+import com.mapbox.api.geocoding.v5.GeocodingCriteria;
+import com.mapbox.api.geocoding.v5.MapboxGeocoding;
 import com.mapbox.api.geocoding.v5.models.CarmenFeature;
+import com.mapbox.api.geocoding.v5.models.GeocodingResponse;
 import com.mapbox.core.MapboxService;
+import com.mapbox.core.exceptions.ServicesException;
 import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.LineString;
@@ -46,6 +51,7 @@ import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.location.LocationComponent;
 import com.mapbox.mapboxsdk.location.LocationComponentActivationOptions;
 import com.mapbox.mapboxsdk.location.OnCameraTrackingChangedListener;
+import com.mapbox.mapboxsdk.location.OnLocationCameraTransitionListener;
 import com.mapbox.mapboxsdk.location.modes.CameraMode;
 import com.mapbox.mapboxsdk.location.modes.RenderMode;
 import com.mapbox.mapboxsdk.maps.MapView;
@@ -62,6 +68,8 @@ import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 import com.margdarshak.R;
 import com.margdarshak.routing.MargdarshakDirection;
 import com.margdarshak.routing.OSRMService;
+
+import java.util.List;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -89,6 +97,8 @@ public class HomeFragment extends Fragment implements
     private static final String RED_PIN_ICON_ID = "red-pin-icon-id";
     private static final String PLACE_MARKER = "placeMarker";
     private static final String PLACE_ICON_LAYER_ID = "place-layer-id";
+    public static final int CAMERA_ANIMATION_TIME = 2000;
+    private static final int PLACE_SELECTOR_REQUEST_CODE = 899;
     private MapboxMap mapboxMap;
     private ImageButton myLocationButton;
     private ImageButton getDirectionButton;
@@ -97,6 +107,7 @@ public class HomeFragment extends Fragment implements
     private EditText searchTextBox;
     private LocationEngine locationEngine;
     private LocationComponent locationComponent;
+    private PlaceAutocompleteFragment autocompleteFragment;
 
     @Override
     public void onAttach(Context context) {
@@ -125,6 +136,11 @@ public class HomeFragment extends Fragment implements
                             iconOffset(new Float[] {0f, -8f})
                     ));
                 });
+        setUpSearch();
+        mapboxMap.addOnMapClickListener(point -> {
+            makeGeocodeSearch(mapboxMap.getCameraPosition().target);
+            return false;
+        });
     }
 
     @Override
@@ -139,21 +155,66 @@ public class HomeFragment extends Fragment implements
         myLocationButton = root.findViewById(R.id.locationFAB);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(this);
-
-        setUpSearch(savedInstanceState, root);
-
-
+        searchFragmentContainer = root.findViewById(R.id.search_fragment_container);
+        searchTextBox = root.findViewById(R.id.search_box_text);
+        setUpSearchFragment(savedInstanceState);
         return root;
     }
 
-    private void setUpSearch(Bundle savedInstanceState, View root) {
-        searchFragmentContainer = root.findViewById(R.id.search_fragment_container);
-        searchTextBox = root.findViewById(R.id.search_box_text);
-        searchTextBox.setBackgroundColor(getResources().getColor(R.color.colorWhite, null));
-        searchFragmentContainer.setClipToOutline(true);
-        searchTextBox.setClipToOutline(true);
-        InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        PlaceAutocompleteFragment autocompleteFragment;
+    private void makeGeocodeSearch(final LatLng latLng) {
+        try {
+            // Build a Mapbox geocoding request
+            MapboxGeocoding client = MapboxGeocoding.builder()
+                    .accessToken(getString(R.string.mapbox_access_token))
+                    .query(Point.fromLngLat(latLng.getLongitude(), latLng.getLatitude()))
+                    .geocodingTypes(GeocodingCriteria.TYPE_PLACE)
+                    .mode(GeocodingCriteria.MODE_PLACES)
+                    .build();
+            client.enqueueCall(new Callback<GeocodingResponse>() {
+                @Override
+                public void onResponse(Call<GeocodingResponse> call,
+                                       Response<GeocodingResponse> response) {
+                    if (response.body() != null) {
+                        List<CarmenFeature> results = response.body().features();
+                        if (results.size() > 0) {
+                            // Get the first Feature from the successful geocoding response
+                            CarmenFeature feature = results.get(0);
+                            mapboxMap.getStyle(loadedMapStyle -> {
+                                GeoJsonSource source = loadedMapStyle.getSourceAs(PLACE_ICON_SOURCE_ID);
+                                if (source != null) {
+                                    source.setGeoJson(FeatureCollection.fromFeatures(
+                                            new Feature[] {Feature.fromJson(feature.toJson())}));
+                                }
+                            });
+                            displayPlaceInfo(feature);
+                        } else {
+                            Toast.makeText(getActivity(), "No result found",
+                                    Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<GeocodingResponse> call, Throwable throwable) {
+                    Log.e(TAG, "Geocoding Failure: " + throwable.getMessage());
+                }
+            });
+        } catch (ServicesException servicesException) {
+            Log.e(TAG, "Error geocoding: " + servicesException.toString());
+        }
+    }
+
+    private void displayPlaceInfo(CarmenFeature carmenFeature) {
+        CardView infoCard = getView().findViewById(R.id.info_frame);
+        infoCard.setVisibility(View.VISIBLE);
+        getView().findViewById(R.id.close_info).setOnClickListener(v -> {
+            infoCard.setVisibility(View.GONE);
+        });
+        ((TextView)getView().findViewById(R.id.selected_location_info_text)).setText(carmenFeature.placeName());
+        ((TextView)getView().findViewById(R.id.selected_location_info_address)).setText(carmenFeature.address());
+    }
+
+    private void setUpSearchFragment(Bundle savedInstanceState){
         if (savedInstanceState == null) {
             PlaceOptions placeOptions = PlaceOptions.builder()
                     .backgroundColor(getResources().getColor(R.color.colorWhite, null))
@@ -169,6 +230,14 @@ public class HomeFragment extends Fragment implements
             autocompleteFragment = (PlaceAutocompleteFragment)
                     getParentFragmentManager().findFragmentByTag(TAG);
         }
+    }
+
+
+    private void setUpSearch() {
+        searchTextBox.setBackgroundColor(getResources().getColor(R.color.colorWhite, null));
+        searchFragmentContainer.setClipToOutline(true);
+        searchTextBox.setClipToOutline(true);
+        InputMethodManager imm = (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
 
         autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
             @Override
@@ -181,17 +250,12 @@ public class HomeFragment extends Fragment implements
                         source.setGeoJson(FeatureCollection.fromFeatures(
                                 new Feature[] {Feature.fromJson(carmenFeature.toJson())}));
                     }
-                    Log.d(TAG, "before camera animate");
                     // Move map camera to the selected location
-                    mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(
-                            new CameraPosition.Builder()
-                                    .target(new LatLng(((Point) carmenFeature.geometry()).latitude(),
-                                            ((Point) carmenFeature.geometry()).longitude()))
-                                    .zoom(14)
-                                    .build()), 4000);
+                    moveCameraTo(((Point) carmenFeature.geometry()).latitude(),
+                            ((Point) carmenFeature.geometry()).longitude());
                 });
-
-
+                displayPlaceInfo(carmenFeature);
+                locationComponent.setCameraMode(CameraMode.NONE);
                 myLocationButton.setVisibility(View.VISIBLE);
                 finish();
             }
@@ -252,13 +316,13 @@ public class HomeFragment extends Fragment implements
         searchTextBox.clearFocus();
     }
 
-    private void moveCameraTo(Location location) {
-        // Toggle GPS position updates
+    private CameraPosition moveCameraTo(double latitude, double longitude) {
         CameraPosition position = new CameraPosition.Builder()
-                .target(new LatLng(location))
+                .target(new LatLng(latitude, longitude))
                 .zoom(14) // Sets the zoom
                 .build(); // Creates a CameraPosition from the builder
-        mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), 2000);
+       mapboxMap.animateCamera(CameraUpdateFactory.newCameraPosition(position), CAMERA_ANIMATION_TIME);
+       return position;
 
     }
 
@@ -268,7 +332,8 @@ public class HomeFragment extends Fragment implements
         locationEngine.getLastLocation(new LocationEngineCallback<LocationEngineResult>() {
             @Override
             public void onSuccess(LocationEngineResult result) {
-                moveCameraTo(result.getLastLocation());
+                moveCameraTo(result.getLastLocation().getLatitude(),
+                        result.getLastLocation().getLongitude());
             }
 
             @Override
@@ -288,7 +353,7 @@ public class HomeFragment extends Fragment implements
                         .builder(getContext(), loadedMapStyle)
                         .build());
         locationComponent.setLocationComponentEnabled(true);
-        locationComponent.setCameraMode(CameraMode.TRACKING);
+        locationComponent.setCameraMode(CameraMode.TRACKING, CAMERA_ANIMATION_TIME, (double)14, null, null, null);
         locationComponent.setRenderMode(RenderMode.COMPASS);
         locationComponent.addOnCameraTrackingChangedListener(new OnCameraTrackingChangedListener() {
             @Override
@@ -309,10 +374,11 @@ public class HomeFragment extends Fragment implements
             initializeLocationEngine();
             initializeLocationComponent(loadedMapStyle);
             myLocationButton.setOnClickListener(v -> {
-                moveCameraTo(locationComponent.getLastKnownLocation());
                 myLocationButton.setVisibility(View.INVISIBLE);
-                locationComponent.setCameraMode(CameraMode.TRACKING);
+                locationComponent.setCameraMode(CameraMode.TRACKING, CAMERA_ANIMATION_TIME, (double)14, null, null, null);
             });
+
+            // TODO: remove this
             getDirectionButton.setOnClickListener(view -> {
                     mapboxMap.setStyle(Style.MAPBOX_STREETS, style -> {
                         Location currentLocation = mapboxMap.getLocationComponent().getLastKnownLocation();
@@ -343,7 +409,7 @@ public class HomeFragment extends Fragment implements
                             .useDefaultLocationEngine(false)
                             .build());
             locationComponent.setLocationComponentEnabled(false);
-            locationComponent.setCameraMode(CameraMode.TRACKING);
+            locationComponent.setCameraMode(CameraMode.TRACKING, CAMERA_ANIMATION_TIME, (double)14, null, null, null);
             locationComponent.setRenderMode(RenderMode.COMPASS);
         }
     }
