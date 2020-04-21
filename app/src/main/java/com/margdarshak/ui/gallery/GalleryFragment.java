@@ -31,7 +31,6 @@ import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.Point;
 import com.mapbox.mapboxsdk.annotations.BubbleLayout;
-import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -49,6 +48,7 @@ import com.mapbox.mapboxsdk.style.sources.GeoJsonSource;
 import com.margdarshak.ActivityPermissionListener;
 import com.margdarshak.R;
 import com.margdarshak.ui.data.model.BikesData;
+import com.margdarshak.ui.data.model.BusData;
 
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
@@ -74,22 +74,29 @@ import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconAnchor;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconImage;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconOffset;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.iconSize;
-
+//https://data.smartdublin.ie/cgi-bin/rtpi/busstopinformation?stopid&format=json
 public class GalleryFragment extends Fragment implements
         OnMapReadyCallback, MapboxMap.OnMapClickListener {
 
     private static FeatureCollection featureCollection;
+    private static FeatureCollection busfeatureCollection;
     private GalleryViewModel galleryViewModel;
     private MapboxMap mapboxMap;
     private ActivityPermissionListener permissionResultListener;
     private static GeoJsonSource source;
+    private static GeoJsonSource bussource;
     private static final String PROPERTY_SELECTED = "selected";
     private static final String GEOJSON_SOURCE_ID = "GEOJSON_SOURCE_ID";
+   private static final String BUS_GEOJSON_SOURCE_ID = "BUS_GEOJSON_SOURCE_ID";
     private static final String MARKER_IMAGE_ID = "COLOR_IMAGE_ID";
+    private static final String BUS_MARKER_IMAGE_ID = "COLOR_IMAGE_ID";
     private static final String GREY_IMAGE_ID = "GREY_IMAGE_ID";
     private static final String MARKER_LAYER_ID = "COLOR_LAYER_ID";
+   private static final String BUS_MARKER_LAYER_ID = "BUS_COLOR_LAYER_ID";
     private static final String CALLOUT_LAYER_ID = "CALLOUT_LAYER_ID";
+    private static final String BUS_CALLOUT_LAYER_ID = "CALLOUT_LAYER_ID";
     private static final String PROPERTY_NAME = "name";
+    private static final String BUS_PROPERTY_NAME = "name";
     private static final String AVAILABLE_BIKE_STANDS = "available_bike_stands";
 
     @Override
@@ -124,6 +131,7 @@ public class GalleryFragment extends Fragment implements
                         }
                     });
                 new LoadGeoJsonDataTask(getActivity(), mapboxMap).execute();
+                new LoadGeoJsonDataTask_bus(getActivity(), mapboxMap).execute();
             });
         //createThreadGetForDublinBikes();
         /*mapboxMap.setStyle(Style.MAPBOX_STREETS, new Style.OnStyleLoaded() {
@@ -266,11 +274,14 @@ public class GalleryFragment extends Fragment implements
      * @param screenPoint the point on screen clicked
      */
     private boolean handleClickIcon(PointF screenPoint) {
-        List<Feature> features = mapboxMap.queryRenderedFeatures(screenPoint, MARKER_LAYER_ID);
+        List<Feature> features = mapboxMap.queryRenderedFeatures(screenPoint, BUS_MARKER_LAYER_ID);
+        //List<Feature> features = mapboxMap.queryRenderedFeatures(screenPoint, MARKER_LAYER_ID);
+
         Log.d(TAG, ">> features: "+ features.size() + "point " + screenPoint.toString());
+        Log.d(TAG, ">> busfeatures: "+ features.size() + "point " + screenPoint.toString());
         if (!features.isEmpty()) {
             String name = features.get(0).getStringProperty(PROPERTY_NAME);
-            List<Feature> featureList = featureCollection.features();
+            List<Feature> featureList = busfeatureCollection.features();
             if (featureList != null) {
                 for (int i = 0; i < featureList.size(); i++) {
                     if (featureList.get(i).getStringProperty(PROPERTY_NAME).equals(name)) {
@@ -285,6 +296,8 @@ public class GalleryFragment extends Fragment implements
         } else {
             return false;
         }
+
+
     }
 
     /**
@@ -298,6 +311,11 @@ public class GalleryFragment extends Fragment implements
             setFeatureSelectState(feature, true);
             refreshSource();
         }
+        if (busfeatureCollection.features() != null) {
+            Feature busfeature = busfeatureCollection.features().get(index);
+            setFeatureSelectState_bus(busfeature, true);
+            refreshbusSource();
+        }
     }
 
     /**
@@ -309,6 +327,12 @@ public class GalleryFragment extends Fragment implements
         if (feature.properties() != null) {
             feature.properties().addProperty(PROPERTY_SELECTED, selectedState);
             refreshSource();
+        }
+    }
+    private void setFeatureSelectState_bus(Feature busfeature, boolean selectedState) {
+        if (busfeature.properties() != null) {
+            busfeature.properties().addProperty(PROPERTY_SELECTED, selectedState);
+            refreshbusSource();
         }
     }
 
@@ -324,11 +348,23 @@ public class GalleryFragment extends Fragment implements
         }
         return featureCollection.features().get(index).getBooleanProperty(PROPERTY_SELECTED);
     }
+    private boolean featureSelectStatus_bus(int index) {
+        if (busfeatureCollection == null) {
+            return false;
+        }
+        return busfeatureCollection.features().get(index).getBooleanProperty(PROPERTY_SELECTED);
+    }
 
     private void refreshSource() {
         if (source != null && featureCollection != null) {
             Log.d(TAG, ">> refreshing source: "+ featureCollection.features().size());
             source.setGeoJson(featureCollection);
+        }
+    }
+    private void refreshbusSource() {
+        if (bussource != null && busfeatureCollection != null) {
+            Log.d(TAG, ">> refreshing source: "+ busfeatureCollection.features().size());
+            bussource.setGeoJson(busfeatureCollection);
         }
     }
 
@@ -342,10 +378,12 @@ public class GalleryFragment extends Fragment implements
         private GeoJsonSource source;
         private FeatureCollection featureCollection;
 
+
         LoadGeoJsonDataTask(Activity activity, MapboxMap mapboxMap) {
             this.activityRef = new WeakReference<>(activity);
             this.mapboxMap = mapboxMap;
             this.featureCollection = GalleryFragment.featureCollection;
+
         }
 
         @Override
@@ -357,6 +395,7 @@ public class GalleryFragment extends Fragment implements
             }
 
             return FeatureCollection.fromFeatures(loadGeoJsonFromAsset(activity));
+
         }
 
         @Override
@@ -401,6 +440,7 @@ public class GalleryFragment extends Fragment implements
             }
         }
 
+
         private void setUpInfoWindowLayer(@NonNull Style loadedStyle) {
             loadedStyle.addLayer(new SymbolLayer(CALLOUT_LAYER_ID, GEOJSON_SOURCE_ID)
                     .withProperties(
@@ -434,28 +474,136 @@ public class GalleryFragment extends Fragment implements
                             .fromGeometry(Point.fromLngLat(bd.getPosition().getLng(),bd.getPosition().getLat()), properties, String.valueOf(bd.getNumber()));
                     features.add(f);
                 }
+
             } catch (Exception exception) {
                 throw new RuntimeException(exception);
             }
             return features;
         }
     }
+    private static class LoadGeoJsonDataTask_bus extends AsyncTask<Void, Void, FeatureCollection> {
 
-    private static class GenerateViewIconTask extends AsyncTask<FeatureCollection, Void, HashMap<String, Bitmap>> {
+        private final WeakReference<Activity> activityRef;
+        private final MapboxMap mapboxMap;
+        private GeoJsonSource bussource;
+        private FeatureCollection busfeatureCollection;
+
+
+        LoadGeoJsonDataTask_bus(Activity activity, MapboxMap mapboxMap) {
+            this.activityRef = new WeakReference<>(activity);
+            this.mapboxMap = mapboxMap;
+            this.busfeatureCollection = GalleryFragment.busfeatureCollection;
+
+        }   
+
+        @Override
+        protected FeatureCollection doInBackground(Void... params) {
+            Activity activity = activityRef.get();
+
+            if (activity == null) {
+                return null;
+            }
+
+            return FeatureCollection.fromFeatures(loadGeoJsonFromAsset(activity));
+        }
+
+        @Override
+        protected void onPostExecute(FeatureCollection busfeatureCollection) {
+            super.onPostExecute(busfeatureCollection);
+            Activity activity = activityRef.get();
+
+            if (busfeatureCollection == null || activity == null) {
+                return;
+            }
+
+            for (Feature singleFeature : busfeatureCollection.features()) {
+                singleFeature.addBooleanProperty(PROPERTY_SELECTED, false);
+            }
+
+            this.busfeatureCollection = busfeatureCollection;
+            GalleryFragment.busfeatureCollection = busfeatureCollection;
+            if (mapboxMap != null) {
+                mapboxMap.getStyle(style -> {
+                    bussource = new GeoJsonSource(GEOJSON_SOURCE_ID, busfeatureCollection);
+                    style.addSource(bussource);
+                    GalleryFragment.bussource = bussource;
+                    style.addImage(BUS_MARKER_IMAGE_ID, BitmapFactory.decodeResource(
+                            activity.getResources(), R.drawable.bus));
+                    style.addLayer(new SymbolLayer(BUS_MARKER_LAYER_ID, BUS_GEOJSON_SOURCE_ID)
+                            .withProperties(
+                                    iconSize(0.05f),
+                                    iconImage(
+
+                                                    literal(BUS_MARKER_IMAGE_ID) // default value
+
+                                    ),
+                                    iconAllowOverlap(true),
+                                    iconOffset(new Float[] {0f, -8f})
+                            ));
+                    setUpInfoWindowLayer(style);
+                    new GenerateViewIconTask_bus(activity, mapboxMap).execute(busfeatureCollection);
+                });
+            }
+        }
+
+
+        private void setUpInfoWindowLayer(@NonNull Style loadedStyle) {
+            loadedStyle.addLayer(new SymbolLayer(BUS_CALLOUT_LAYER_ID, BUS_GEOJSON_SOURCE_ID)
+                    .withProperties(
+                            iconImage("{name}"),
+                            iconAnchor(ICON_ANCHOR_BOTTOM),
+                            iconAllowOverlap(true),
+                            iconOffset(new Float[] {-2f, -28f})
+                    )
+                    .withFilter(eq((Expression.get(PROPERTY_SELECTED)), literal(true))));
+        }
+        static List<Feature> loadGeoJsonFromAsset(Context context) {
+            List<Feature> features = new ArrayList<>();
+            try {
+
+                String response = getRestApi("https://data.smartdublin.ie/cgi-bin/rtpi/busstopinformation?stopid&format=json");
+                JSONArray busData = new JSONArray(response);
+                GsonBuilder builder = new GsonBuilder();
+                builder.setPrettyPrinting().serializeNulls();
+                Gson gson = builder.create();
+
+                for (int i = 0; i < busData.length(); i++) {
+                    JSONObject object = busData.getJSONObject(i);
+                    JsonObject properties = new JsonObject();
+                    BusData bsd = gson.fromJson(object.toString(), BusData.class);
+                    properties.add("stopid", gson.toJsonTree(bsd.getStopid()));
+                    properties.add("shortname", gson.toJsonTree(bsd.getShortname()));
+                    properties.add("fullname", gson.toJsonTree(bsd.getFullname()));
+                    Feature f = Feature
+                            .fromGeometry(Point.fromLngLat(bsd.getLatitude(),bsd.getLongitude()), properties);
+                    features.add(f);
+                }
+            } catch (Exception exception) {
+                throw new RuntimeException(exception);
+            }
+            return features;
+        }
+    }
+    private static class GenerateViewIconTask_bus extends AsyncTask<FeatureCollection, Void, HashMap<String, Bitmap>> {
 
         private final HashMap<String, View> viewMap = new HashMap<>();
         private final WeakReference<Activity> activityRef;
-        private final boolean refreshSource;
+        private final boolean refreshbusSource;
         private MapboxMap mapboxMap;
 
-        GenerateViewIconTask(Activity activity, boolean refreshSource, MapboxMap mapboxMap) {
+        GenerateViewIconTask_bus(Activity activity, boolean refreshbusSource, MapboxMap mapboxMap) {
             this.activityRef = new WeakReference<>(activity);
-            this.refreshSource = refreshSource;
+            this.refreshbusSource = refreshbusSource;
             this.mapboxMap = mapboxMap;
         }
 
-        GenerateViewIconTask(Activity activity, MapboxMap mapboxMap) {
+        GenerateViewIconTask_bus(Activity activity, MapboxMap mapboxMap) {
             this(activity, false, mapboxMap);
+        }
+
+        private GenerateViewIconTask_bus(WeakReference<Activity> activityRef, boolean refreshbusSource) {
+            this.activityRef = activityRef;
+            this.refreshbusSource = refreshbusSource;
         }
 
         @SuppressWarnings("WrongThread")
@@ -466,21 +614,18 @@ public class GalleryFragment extends Fragment implements
                 HashMap<String, Bitmap> imagesMap = new HashMap<>();
                 LayoutInflater inflater = LayoutInflater.from(activity);
 
-                FeatureCollection featureCollection = params[0];
+                FeatureCollection busfeatureCollection = params[0];
 
-                for (Feature feature : featureCollection.features()) {
+                for (Feature busfeature : busfeatureCollection.features()) {
 
                     BubbleLayout bubbleLayout = (BubbleLayout)
                             inflater.inflate(R.layout.symbol_layer_info_window_layout_callout, null);
 
-                    String name = feature.getStringProperty(PROPERTY_NAME);
+                    String name = busfeature.getStringProperty(PROPERTY_NAME);
                     TextView titleTextView = bubbleLayout.findViewById(R.id.info_window_title);
                     titleTextView.setText(name);
 
-                    String style = feature.getStringProperty(AVAILABLE_BIKE_STANDS);
-                    TextView descriptionTextView = bubbleLayout.findViewById(R.id.info_window_description);
-                    descriptionTextView.setText(
-                            String.format(activity.getString(R.string.available_bike_stands), style));
+
 
                     int measureSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
                     bubbleLayout.measure(measureSpec, measureSpec);
@@ -511,7 +656,84 @@ public class GalleryFragment extends Fragment implements
                         style.addImages(bitmapHashMap);
                     });
                 }
-                if (refreshSource) {
+                if (refreshbusSource) {
+                    if (bussource != null && busfeatureCollection != null) {
+                        bussource.setGeoJson(busfeatureCollection);
+                    }
+                }
+
+            }
+            Toast.makeText(activity, R.string.tap_on_marker_instruction, Toast.LENGTH_SHORT).show();
+        }
+    }
+    private static class GenerateViewIconTask extends AsyncTask<FeatureCollection, Void, HashMap<String, Bitmap>> {
+
+        private final HashMap<String, View> viewMap = new HashMap<>();
+        private final WeakReference<Activity> activityRef;
+        private final boolean refreshSource;
+        private MapboxMap mapboxMap;
+
+        GenerateViewIconTask(Activity activity, boolean refreshSource, MapboxMap mapboxMap) {
+            this.activityRef = new WeakReference<>(activity);
+            this.refreshSource = refreshSource;
+            this.mapboxMap = mapboxMap;
+        }
+
+        GenerateViewIconTask(Activity activity, MapboxMap mapboxMap) {
+            this(activity, false, mapboxMap);
+        }
+
+        @SuppressWarnings("WrongThread")
+        @Override
+        protected HashMap<String, Bitmap> doInBackground(FeatureCollection... params) {
+            Activity activity = activityRef.get();
+            if (activity != null) {
+                HashMap<String, Bitmap> imagesMap = new HashMap<>();
+                LayoutInflater inflater = LayoutInflater.from(activity);
+
+                FeatureCollection featureCollection = params[0];
+
+                for (Feature busfeature : busfeatureCollection.features()) {
+
+                    BubbleLayout bubbleLayout = (BubbleLayout)
+                            inflater.inflate(R.layout.symbol_layer_info_window_layout_callout, null);
+
+                    String name = busfeature.getStringProperty(PROPERTY_NAME);
+                    TextView titleTextView = bubbleLayout.findViewById(R.id.info_window_title);
+                    titleTextView.setText(name);
+
+
+
+                    int measureSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+                    bubbleLayout.measure(measureSpec, measureSpec);
+
+                    float measuredWidth = bubbleLayout.getMeasuredWidth();
+
+                    bubbleLayout.setArrowPosition(measuredWidth / 2 - 5);
+
+                    Bitmap bitmap = SymbolGenerator.generate(bubbleLayout);
+                    imagesMap.put(name, bitmap);
+                    viewMap.put(name, bubbleLayout);
+                    Log.d(TAG, ">> images map: "+ imagesMap.size());
+                }
+
+                return imagesMap;
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        protected void onPostExecute(HashMap<String, Bitmap> bitmapHashMap) {
+            super.onPostExecute(bitmapHashMap);
+            Activity activity = activityRef.get();
+            if (activity != null && bitmapHashMap != null) {
+                if (mapboxMap != null) {
+                    mapboxMap.getStyle(style -> {
+                        style.addImages(bitmapHashMap);
+                    });
+                }
+                                if (refreshSource) {
                     if (source != null && featureCollection != null) {
                         source.setGeoJson(featureCollection);
                     }
@@ -520,7 +742,6 @@ public class GalleryFragment extends Fragment implements
             Toast.makeText(activity, R.string.tap_on_marker_instruction, Toast.LENGTH_SHORT).show();
         }
     }
-
     /**
      * Utility class to generate Bitmaps for Symbol.
      */
